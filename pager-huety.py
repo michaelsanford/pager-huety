@@ -1,36 +1,23 @@
 #!/usr/bin/env python3
 
-"""
-Author: Justin Lintz <jlintz@gmail.com>
-
-Module to control Philips Hue light bulbs
-based on Pager Duty alerts
-"""
-
 import sys
 import logging
 from datetime import datetime
-from argparse import ArgumentParser
 from time import sleep
 from requests.exceptions import RequestException
 import requests
 from phue import Bridge
+from os import getenv
 
 logger = logging.getLogger('pager-huety')
 
 
 def is_night_time(pm=21, am=7):
-    """
-    Simple function to determine if it's day or night
-    """
     cur_hour = datetime.now().hour
     return cur_hour >= pm or cur_hour <= am
 
 
 class PagerHuety(object):
-    """
-    Control Philips Hue light bulbs based on PagerDuty incident
-    """
     def __init__(self, api_key, hue_host):
         self.api_key = api_key
         self.bridge = Bridge(hue_host)
@@ -97,51 +84,55 @@ class PagerHuety(object):
         return
 
 
-def main():
-    """
-    Control Philips Hue light bulbs on triggered PagerDuty incident
-    """
+def main():    
+    pd_api_key = getenv('PD_API_KEY')
 
-    parser = ArgumentParser(description='Trigger your Philips Hue lights via a Page Duty alert')
-    parser.add_argument('--pd-api-key', type=str, required=True,
-                        help='API Key for pager duty')
-    parser.add_argument('--hue-host', type=str, required=True,
-                        help='Hostname of your Philips Hue Bridge')
-    parser.add_argument('--lamp', type=int, default=3,
-                        help='Numeric id of the lamp to flash')
-    parser.add_argument('--night-only', action='store_true', default=False,
-                        help='Will only flash lights between 9PM - 7AM')
-    parser.add_argument('--user-filter', type=str,
-                        help='Only trigger lights if incident is assigned to one of these user ids')
-    parser.add_argument('--test', action='store_true', default=False,
-                        help='Test Pager Duty connection and Flash lights')
-    parser.add_argument('--log-level', type=str, default='WARN',
-                        help='Set logging level')
+    hue_host = getenv('HUE_HOST')
 
-    args = parser.parse_args()
+    lamp = getenv('LAMP', 3)
 
-    # Configure log level
-    log_level = getattr(logging, args.log_level.upper(), None)
+    night_only = getenv('NIGHT_ONLY', False)
+
+    user_filter = getenv('PD_USER_FILTER')
+
+    log_level = getenv('LOG_LEVEL', 'WARN')
+
+    log_level = getattr(logging, log_level.upper(), None)
     if not isinstance(log_level, int):
-        raise ValueError('Invalid log level: %s' % args.log_level)
+        raise ValueError('Invalid log level: %s' % log_level)
     phue_logger = logging.getLogger('phue')
     logger.setLevel(level=log_level)
     phue_logger.setLevel(level=log_level)
 
-    if args.test:
+    if test:
         logger.info('Running in TEST mode')
 
-    ph = PagerHuety(args.pd_api_key, args.hue_host)
+    if pd_api_key is None:
+        logger.critical('FATAL: PD_API_KEY environment variable not set.')
+        sys.exit(1)
 
-    if not is_night_time() and args.night_only and not args.test:
-        logger.info('Night time only mode set, not running')
-        return
+    if hue_host is None:
+        logger.critical('FATAL: HUE_HOST environment variable not set.')
+        sys.exit(1)
 
-    incidents = ph.fetch_incidents(args.user_filter)
+    if lamp is None:
+        logger.critical('FATAL: LAMP environment variable not set.')
+        sys.exit(1)
 
-    if incidents['total'] != 0 or args.test:
-        logger.info('Triggering lights')
-        ph.flash_light(args.lamp)
+    ph = PagerHuety(pd_api_key, hue_host)
+
+    while True:
+        if not is_night_time() and night_only and not test:
+            logger.info('Night time only mode set, not running')
+            continue
+
+        incidents = ph.fetch_incidents(user_filter)
+
+        if incidents['total'] != 0 or test:
+            logger.info('Triggering lights')
+            ph.flash_light(lamp)
+
+        sleep(30)
 
 
 if __name__ == '__main__':

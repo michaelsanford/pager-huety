@@ -1,11 +1,13 @@
-Pager-Huety
+Dockerized Pager-Huety
 ===============================
 A script to trigger Philip Hue lightbulbs based on triggered incidents from PagerDuty.
 
-Dependencies
-------------
- * requests (http://python-requests.org)
- * phue (https://github.com/studioimaginaire/phue)
+Dockerized
+-----
+```
+docker build -t pagerhuety .
+```
+
 
 Usage
 -----
@@ -25,3 +27,8 @@ Usage
 Example
 -----
     ./pager-huety.py --pd-api-key=asdfgh --hue-host=Philips-hue.home
+
+
+Colophon
+-----
+Originally authored by Justin Lintz <jlintz@gmail.com> as a module to control Philips Hue light bulbs based on Pager Duty alerts.
